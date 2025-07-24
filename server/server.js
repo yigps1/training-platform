@@ -7,41 +7,40 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware логване
-app.use((req, res, next) => {
-  console.log(`[${req.method}] ${req.url}`);
-  next();
-});
-
-// CORS настройки
+// ✅ Разреши достъп от фронтенда (Render frontend домейн)
 const corsOptions = {
-  origin: 'https://training-platform-7znr.onrender.com',
+  origin: 'https://training-platform-4tn3.onrender.com', // Твоят frontend URL!
+  credentials: true,
   optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Преflight
-app.options('*', cors(corsOptions), (req, res) => {
-  res.sendStatus(200);
+// 🧾 Логване на заявки
+app.use((req, res, next) => {
+  console.log(`[${req.method}] ${req.url}`);
+  next();
 });
 
-// Статични файлове от React build
-app.use(express.static(path.join(__dirname, '../client/build')));
+// ✅ CORS preflight
+app.options('*', cors(corsOptions));
 
-// PostgreSQL конфигурация
+// 📦 Serve React build (ако е deploy-нат фронт)
+app.use(express.static(path.join(__dirname, 'build')));
+
+// 🐘 PostgreSQL връзка
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// API health check
+// ✅ Health Check
 app.get('/api', (req, res) => {
   res.send('API работи 🟢');
 });
 
-// Events API
+// 📅 Events
 app.get('/api/events', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events');
@@ -55,7 +54,6 @@ app.get('/api/events', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   const { title, start, end } = req.body;
   if (!title || !start || !end) return res.status(400).send('Липсват задължителни полета');
-
   try {
     const result = await pool.query(
       'INSERT INTO events (title, start, "end") VALUES ($1, $2, $3) RETURNING *',
@@ -68,7 +66,7 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-// Trainees API
+// 👨‍🎓 Trainees
 app.get('/api/trainees', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM trainees');
@@ -82,9 +80,11 @@ app.get('/api/trainees', async (req, res) => {
 app.post('/api/trainees', async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).send('Липсва задължително поле: name');
-
   try {
-    const result = await pool.query('INSERT INTO trainees (name) VALUES ($1) RETURNING *', [name]);
+    const result = await pool.query(
+      'INSERT INTO trainees (name) VALUES ($1) RETURNING *',
+      [name]
+    );
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Грешка при запис на trainee:', err);
@@ -104,7 +104,7 @@ app.delete('/api/trainees/:name', async (req, res) => {
   }
 });
 
-// Progress API
+// 📊 Progress
 app.get('/api/progress', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM progress ORDER BY created_at DESC');
@@ -118,9 +118,7 @@ app.get('/api/progress', async (req, res) => {
 app.post('/api/progress', async (req, res) => {
   const { user_id, stage } = req.body;
   console.log("POST /api/progress BODY:", req.body);
-
   if (!user_id || !stage) return res.status(400).send('Missing user_id or stage');
-
   try {
     const result = await pool.query(
       'INSERT INTO progress (user_id, stage, created_at) VALUES ($1, $2, NOW()) RETURNING *',
@@ -133,12 +131,12 @@ app.post('/api/progress', async (req, res) => {
   }
 });
 
-// React SPA fallback
+// ✅ Catch-all route за React SPA
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// Стартиране
+// 🚀 Стартирай сървъра
 app.listen(PORT, () => {
   console.log(`Сървърът работи на порт ${PORT}`);
 });

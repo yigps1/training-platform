@@ -1,23 +1,83 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+
+const API_BASE = "https://training-platform-backend-mq42.onrender.com/api";
 
 export default function ProgressTracker() {
-  const [trainees, setTrainees] = useState([
-    { name: "John Doe", progress: 60 },
-    { name: "Jane Smith", progress: 80 },
-  ]);
+  const [trainees, setTrainees] = useState([]);
   const [newTrainee, setNewTrainee] = useState("");
 
-  const handleAddTrainee = () => {
-    if (newTrainee.trim()) {
-      setTrainees([...trainees, { name: newTrainee, progress: 0 }]);
+  // Изтегляне на всички trainees от базата
+  useEffect(() => {
+    async function fetchProgress() {
+      try {
+        const res = await fetch(`${API_BASE}/progress`);
+        if (!res.ok) throw new Error("Грешка при зареждане на прогреса");
+        const data = await res.json();
+
+        const grouped = data.reduce((acc, item) => {
+          const name = item.user_id;
+          const stage = parseInt(item.stage.replace("%", "")) || 0;
+          acc[name] = stage;
+          return acc;
+        }, {});
+
+        const formatted = Object.entries(grouped).map(([name, progress]) => ({
+          name,
+          progress,
+        }));
+
+        setTrainees(formatted);
+      } catch (err) {
+        console.error("❌ Failed to fetch progress:", err);
+      }
+    }
+
+    fetchProgress();
+  }, []);
+
+  // Добавяне на нов trainee
+  const handleAddTrainee = async () => {
+    const trimmed = newTrainee.trim();
+    if (!trimmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: trimmed, stage: "0%" }),
+      });
+
+      if (!res.ok) throw new Error("❌ Неуспешно добавяне на trainee");
+
+      setTrainees([...trainees, { name: trimmed, progress: 0 }]);
       setNewTrainee("");
+    } catch (err) {
+      console.error("❌ Error adding trainee:", err);
+      alert("Неуспешно добавяне");
     }
   };
 
-  const updateProgress = (index, newProgress) => {
-    const updated = [...trainees];
-    updated[index].progress = parseInt(newProgress);
-    setTrainees(updated);
+  // Обновяване на прогрес
+  const updateProgress = async (index, newProgress) => {
+    const clamped = Math.min(100, Math.max(0, parseInt(newProgress) || 0));
+    const name = trainees[index].name;
+
+    try {
+      const res = await fetch(`${API_BASE}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: name, stage: `${clamped}%` }),
+      });
+
+      if (!res.ok) throw new Error("❌ Проблем при обновяване");
+
+      const updated = [...trainees];
+      updated[index].progress = clamped;
+      setTrainees(updated);
+    } catch (err) {
+      console.error("❌ Error updating progress:", err);
+      alert("Грешка при запис на прогрес");
+    }
   };
 
   return (
@@ -40,7 +100,10 @@ export default function ProgressTracker() {
 
       <ul className="space-y-3">
         {trainees.map((trainee, index) => (
-          <li key={index} className="flex justify-between items-center border p-2 rounded">
+          <li
+            key={index}
+            className="flex justify-between items-center border p-2 rounded"
+          >
             <span className="font-medium">{trainee.name}</span>
             <div className="flex items-center space-x-2">
               <input
@@ -59,4 +122,3 @@ export default function ProgressTracker() {
     </div>
   );
 }
-
