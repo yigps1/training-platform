@@ -15,7 +15,8 @@ import TrainingDetailsModal from "../components/TrainingDetailsModal";
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-const API_BASE = "https://training-platform-backend.onrender.com/api";
+// ✅ Без /api в края
+const API_BASE = "https://training-platform-backend.onrender.com";
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
@@ -47,7 +48,7 @@ function Dashboard() {
   useEffect(() => {
     async function fetchProgress() {
       try {
-        const res = await fetch(`${API_BASE}/progress`);
+        const res = await fetch(`${API_BASE}/api/progress`);
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
 
@@ -64,7 +65,6 @@ function Dashboard() {
         });
 
         setEvents(eventsFromDB);
-
         const names = [...new Set(data.map((item) => extractName(item.stage)))];
         setTrainees(names);
       } catch (e) {
@@ -109,21 +109,31 @@ function Dashboard() {
       allDay: true,
     };
 
+    console.log("⏳ Sending progress:", {
+      user_id: pendingName,
+      stage: title,
+    });
+
     try {
-      const res = await fetch(`${API_BASE}/progress`, {
+      const res = await fetch(`${API_BASE}/api/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: pendingName, stage: title }),
       });
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const result = await res.text();
+      if (!res.ok) {
+        console.error("❌ API error:", res.status, result);
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
 
+      console.log("✅ Progress saved:", result);
       setEvents((prev) => [...prev, newEvent]);
       setPendingName(null);
       setPendingDepot(null);
       setPendingSlot(null);
     } catch (error) {
-      console.error("Error saving progress:", error);
+      console.error("🚨 Failed to save progress:", error);
       alert("Failed to save progress");
     }
   };
