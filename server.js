@@ -7,37 +7,43 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS конфигурация, замени с URL на твоя frontend
+// 🧾 Логване на всички входящи заявки
+app.use((req, res, next) => {
+  console.log(`[${req.method}] ${req.url}`);
+  next();
+});
+
+// ✅ CORS конфигурация (само за конкретния frontend URL)
 const corsOptions = {
-  origin: 'https://training-platform-7znr.onrender.com', // тук сложи URL-то на фронтенда
+  origin: 'https://training-platform-7znr.onrender.com',
   optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Разрешаване на preflight (OPTIONS) заявки
+// 📡 OPTIONS preflight
 app.options('*', cors(corsOptions), (req, res) => {
   res.sendStatus(200);
 });
 
-// Serve React build (увери се, че имаш build папка след npm run build)
+// 📦 Serve React build (ако имаш front-end тук)
 app.use(express.static(path.join(__dirname, 'build')));
 
-// PostgreSQL connection
+// 🐘 PostgreSQL връзка
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false, // важно за Render
+    rejectUnauthorized: false,
   },
 });
 
-// Health check
+// ✅ Health check
 app.get('/api', (req, res) => {
   res.send('API работи 🟢');
 });
 
-// Events endpoints (пример)
+// 🗓️ Events endpoints
 app.get('/api/events', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events');
@@ -64,7 +70,7 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-// Trainees endpoints (пример)
+// 👨‍🎓 Trainees endpoints
 app.get('/api/trainees', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM trainees');
@@ -103,9 +109,7 @@ app.delete('/api/trainees/:name', async (req, res) => {
   }
 });
 
-// === Нов endpoint за прогрес (progress) ===
-// Добави, ако нямаш - създай таблица progress(user_id, stage, created_at)
-
+// 📊 Progress endpoints
 app.get('/api/progress', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM progress ORDER BY created_at DESC');
@@ -118,6 +122,8 @@ app.get('/api/progress', async (req, res) => {
 
 app.post('/api/progress', async (req, res) => {
   const { user_id, stage } = req.body;
+  console.log("POST /api/progress BODY:", req.body); // 👈 Добавено логване
+
   if (!user_id || !stage) return res.status(400).send('Missing user_id or stage');
 
   try {
@@ -132,12 +138,12 @@ app.post('/api/progress', async (req, res) => {
   }
 });
 
-// Serve frontend for all other routes
+// 🧭 Catch-all route за React Router
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// Start server
+// 🚀 Стартирай сървъра
 app.listen(PORT, () => {
   console.log(`Сървърът работи на порт ${PORT}`);
 });
