@@ -11,6 +11,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Разрешаване на preflight (OPTIONS) заявки
+app.options('*', (req, res) => {
+  res.sendStatus(200);
+});
+
 // Serve React build (увери се, че имаш build папка след npm run build)
 app.use(express.static(path.join(__dirname, 'build')));
 
@@ -42,7 +47,6 @@ app.get('/api/events', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   const { title, start, end } = req.body;
 
-  // Основна валидация
   if (!title || !start || !end) {
     return res.status(400).send('Липсват задължителни полета: title, start или end');
   }
@@ -75,6 +79,7 @@ app.get('/api/trainees', async (req, res) => {
 // Add new trainee
 app.post('/api/trainees', async (req, res) => {
   const { name } = req.body;
+
   if (!name) {
     return res.status(400).send('Липсва задължително поле: name');
   }
@@ -94,8 +99,9 @@ app.post('/api/trainees', async (req, res) => {
 // Delete trainee and related events
 app.delete('/api/trainees/:name', async (req, res) => {
   const { name } = req.params;
+
   try {
-    await pool.query("DELETE FROM events WHERE title ILIKE $1", [name + '%']);
+    await pool.query('DELETE FROM events WHERE title ILIKE $1', [name + '%']);
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
     res.sendStatus(204);
   } catch (err) {
@@ -113,4 +119,3 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Сървърът работи на порт ${PORT}`);
 });
-
