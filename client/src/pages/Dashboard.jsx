@@ -15,7 +15,7 @@ import TrainingDetailsModal from "../components/TrainingDetailsModal";
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-const API_BASE = process.env.REACT_APP_API_URL || "https://training-platform-backend-mq42.onrender.com/api";
+const API_BASE = process.env.REACT_APP_API_URL || "https://your-backend.onrender.com/api";
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
@@ -49,21 +49,22 @@ export default function Dashboard() {
     const loggedInUser = localStorage.getItem("loggedInUser");
     if (!loggedInUser) navigate("/login");
 
-    fetch(`${API_BASE}/events`)
-      .then((res) => res.json())
-      .then((data) => {
-        const mapped = data.map((e) => ({
-          ...e,
-          start: new Date(e.start),
-          end: new Date(e.end),
-        }));
-        setEvents(mapped);
-      });
-
-    fetch(`${API_BASE}/trainees`)
-      .then((res) => res.json())
-      .then(setTrainees);
+    loadDataFromServer();
   }, [navigate]);
+
+  const loadDataFromServer = async () => {
+    const eventsData = await fetch(`${API_BASE}/events`).then((res) => res.json());
+    const traineesData = await fetch(`${API_BASE}/trainees`).then((res) => res.json());
+
+    setEvents(
+      eventsData.map((e) => ({
+        ...e,
+        start: new Date(e.start),
+        end: new Date(e.end),
+      }))
+    );
+    setTrainees(traineesData.map((t) => t.name || t));
+  };
 
   const handleSelectSlot = (slotInfo) => {
     const name = prompt("Enter trainee name:");
@@ -117,9 +118,13 @@ export default function Dashboard() {
 
   const handleDeleteTrainee = async (name) => {
     if (!window.confirm(`Delete ${name}?`)) return;
-    await fetch(`${API_BASE}/trainees/${encodeURIComponent(name)}`, { method: "DELETE" });
-    setEvents((prev) => prev.filter((e) => extractName(e.title) !== name));
-    setTrainees((prev) => prev.filter((t) => t !== name));
+    try {
+      await fetch(`${API_BASE}/trainees/${encodeURIComponent(name)}`, { method: "DELETE" });
+      await loadDataFromServer(); // 🔁 Презареждане от бекенда
+    } catch (err) {
+      alert("Грешка при изтриване.");
+      console.error(err);
+    }
   };
 
   const handleSelectEvent = (event) => {
@@ -138,7 +143,6 @@ export default function Dashboard() {
     const now = new Date();
     const start = new Date(event.start);
     const end = new Date(event.end);
-
     let backgroundColor = "green";
     if (end < now) backgroundColor = "red";
     else if (start <= now && now <= end) backgroundColor = "yellow";
@@ -156,11 +160,9 @@ export default function Dashboard() {
   const getTraineeColor = (trainee) => {
     const event = events.find((ev) => extractName(ev.title) === trainee);
     if (!event) return "black";
-
     const now = new Date();
     const start = new Date(event.start);
     const end = new Date(event.end);
-
     if (end < now) return "red";
     else if (start <= now && now <= end) return "orange";
     else return "green";
@@ -217,6 +219,7 @@ export default function Dashboard() {
       {showDepotSelector && (
         <DepotSelector onSelect={handleDepotSelected} onCancel={() => setShowDepotSelector(false)} />
       )}
+
       {showVehicleSelector && (
         <VehicleSelector onSelect={handleVehicleSelected} onCancel={() => setShowVehicleSelector(false)} />
       )}
