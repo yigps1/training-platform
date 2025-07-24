@@ -11,18 +11,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Serve React build (папка 'build' трябва да съществува)
+// Serve React build (увери се, че имаш build папка след npm run build)
 app.use(express.static(path.join(__dirname, 'build')));
 
 // PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false,
+    rejectUnauthorized: false, // важно за Render
   },
 });
-
-// API endpoints
 
 // Health check
 app.get('/api', (req, res) => {
@@ -45,7 +43,7 @@ app.post('/api/events', async (req, res) => {
   const { title, start, end } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO events (title, start, end) VALUES ($1, $2, $3) RETURNING *',
+      'INSERT INTO events (title, start, "end") VALUES ($1, $2, $3) RETURNING *',
       [title, start, end]
     );
     res.json(result.rows[0]);
@@ -85,6 +83,7 @@ app.post('/api/trainees', async (req, res) => {
 app.delete('/api/trainees/:name', async (req, res) => {
   const { name } = req.params;
   try {
+    // Изтриваме събития, чиито заглавия започват с името (LIKE 'name%')
     await pool.query("DELETE FROM events WHERE title ILIKE $1", [name + '%']);
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
     res.sendStatus(204);
