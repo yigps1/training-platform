@@ -8,20 +8,12 @@ import getDay from "date-fns/getDay";
 import enUS from "date-fns/locale/en-US";
 import { addDays } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { saveAs } from "file-saver";
 import DepotSelector from "../components/DepotSelector";
 import VehicleSelector from "../components/VehicleSelector";
 import TrainingDetailsModal from "../components/TrainingDetailsModal";
 
 const locales = { "en-US": enUS };
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
+const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
 const API_BASE = process.env.REACT_APP_API_URL || "https://training-platform-backend-mq42.onrender.com/api";
 
@@ -57,16 +49,20 @@ export default function Dashboard() {
     const loggedInUser = localStorage.getItem("loggedInUser");
     if (!loggedInUser) navigate("/login");
 
-    fetch(`${API_BASE}/events`).then((res) => res.json()).then((data) => {
-      const mapped = data.map((e) => ({
-        ...e,
-        start: new Date(e.start),
-        end: new Date(e.end),
-      }));
-      setEvents(mapped);
-    });
+    fetch(`${API_BASE}/events`)
+      .then((res) => res.json())
+      .then((data) => {
+        const mapped = data.map((e) => ({
+          ...e,
+          start: new Date(e.start),
+          end: new Date(e.end),
+        }));
+        setEvents(mapped);
+      });
 
-    fetch(`${API_BASE}/trainees`).then((res) => res.json()).then(setTrainees);
+    fetch(`${API_BASE}/trainees`)
+      .then((res) => res.json())
+      .then(setTrainees);
   }, [navigate]);
 
   const handleSelectSlot = (slotInfo) => {
@@ -131,9 +127,77 @@ export default function Dashboard() {
     setDetailsModalInfo({ traineeName: name, start: event.start, end: event.end });
   };
 
+  const handleLogout = () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      localStorage.removeItem("loggedInUser");
+      navigate("/login");
+    }
+  };
+
+  const eventStyleGetter = (event) => {
+    const now = new Date();
+    const start = new Date(event.start);
+    const end = new Date(event.end);
+
+    let backgroundColor = "green";
+    if (end < now) backgroundColor = "red";
+    else if (start <= now && now <= end) backgroundColor = "yellow";
+
+    return {
+      style: {
+        backgroundColor,
+        color: "black",
+        borderRadius: "5px",
+        border: "1px solid #666",
+      },
+    };
+  };
+
+  const getTraineeColor = (trainee) => {
+    const event = events.find((ev) => extractName(ev.title) === trainee);
+    if (!event) return "black";
+
+    const now = new Date();
+    const start = new Date(event.start);
+    const end = new Date(event.end);
+
+    if (end < now) return "red";
+    else if (start <= now && now <= end) return "orange";
+    else return "green";
+  };
+
+  const traineesByDepot = events.reduce((acc, ev) => {
+    const name = extractName(ev.title);
+    const depot = extractDepot(ev.title);
+    const startDate = ev.start;
+    const vehicle = extractVehicle(ev.title);
+
+    if (!acc[depot]) acc[depot] = [];
+    if (!acc[depot].some((t) => t.name === name)) {
+      acc[depot].push({ name, startDate, vehicle });
+    }
+    return acc;
+  }, {});
+
   return (
     <div style={{ padding: 20 }}>
-      <h2>📅 Training Calendar</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15 }}>
+        <h2>📅 Training Calendar</h2>
+        <button
+          onClick={handleLogout}
+          style={{
+            backgroundColor: "#e74c3c",
+            color: "white",
+            border: "none",
+            padding: "8px 16px",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          Logout
+        </button>
+      </div>
+
       <Calendar
         localizer={localizer}
         events={events}
@@ -146,26 +210,45 @@ export default function Dashboard() {
         view={view}
         onNavigate={setDate}
         onView={setView}
+        eventPropGetter={eventStyleGetter}
         style={{ height: 500, marginBottom: 30 }}
       />
 
       {showDepotSelector && (
         <DepotSelector onSelect={handleDepotSelected} onCancel={() => setShowDepotSelector(false)} />
       )}
-
       {showVehicleSelector && (
         <VehicleSelector onSelect={handleVehicleSelected} onCancel={() => setShowVehicleSelector(false)} />
       )}
 
-      <h3>📋 Trainees</h3>
-      <ul>
-        {trainees.map((name) => (
-          <li key={name}>
-            {name}
-            <button onClick={() => handleDeleteTrainee(name)}>Delete</button>
-          </li>
-        ))}
-      </ul>
+      <h3>📋 Trainees List</h3>
+      {Object.keys(traineesByDepot).sort().map((depot) => (
+        <div key={depot} style={{ marginBottom: 20 }}>
+          <h4>{depot}</h4>
+          <ul>
+            {traineesByDepot[depot]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(({ name, startDate, vehicle }) => (
+                <li
+                  key={name}
+                  style={{ cursor: "pointer", color: getTraineeColor(name) }}
+                  onClick={() => navigate(`/trainee/${encodeURIComponent(name)}`)}
+                >
+                  {name} - Start: {format(new Date(startDate), "dd/MM/yyyy")} - Vehicle: {vehicle}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteTrainee(name);
+                    }}
+                    style={{ marginLeft: 10 }}
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </div>
+      ))}
 
       {detailsModalInfo && (
         <TrainingDetailsModal

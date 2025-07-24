@@ -6,7 +6,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ CORS конфигурация
+// ✅ CORS
 const corsOptions = {
   origin: [
     'https://training-platform-4tn3.onrender.com',
@@ -15,24 +15,23 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
 };
-
 app.use(cors(corsOptions));
 app.use(express.json());
 app.options('*', cors(corsOptions));
 
-// 🧾 Логване
+// 🧾 Logging middleware
 app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url}`);
   next();
 });
 
-// 🐘 PostgreSQL
+// 🐘 PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// ✅ Health
+// ✅ Health check
 app.get('/api', (req, res) => {
   res.send('✅ API работи');
 });
@@ -53,10 +52,20 @@ app.get('/api/events', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   const { title, start, end } = req.body;
   if (!title || !start || !end) return res.status(400).send('Липсват задължителни полета');
+
+  const nameMatch = title.match(/^(.+?)\s*\(/);
+  const depotMatch = title.match(/\((.+?)\)/);
+  const vehicleMatch = title.match(/\[(.+?)\]$/);
+
+  const trainee_name = nameMatch ? nameMatch[1] : null;
+  const depot = depotMatch ? depotMatch[1] : null;
+  const vehicle = vehicleMatch ? vehicleMatch[1] : null;
+
   try {
     const result = await pool.query(
-      'INSERT INTO events (title, start, "end") VALUES ($1, $2, $3) RETURNING *',
-      [title, start, end]
+      `INSERT INTO events (title, start, "end", trainee_name, depot, vehicle)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [title, start, end, trainee_name, depot, vehicle]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -96,7 +105,7 @@ app.post('/api/trainees', async (req, res) => {
 app.delete('/api/trainees/:name', async (req, res) => {
   const { name } = req.params;
   try {
-    await pool.query('DELETE FROM events WHERE title ILIKE $1', [name + '%']);
+    await pool.query('DELETE FROM events WHERE trainee_name = $1', [name]);
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
     res.sendStatus(204);
   } catch (err) {
@@ -120,8 +129,6 @@ app.get('/api/progress', async (req, res) => {
 
 app.post('/api/progress', async (req, res) => {
   const { user_id, stage } = req.body;
-  console.log('📩 POST /api/progress BODY:', req.body);
-
   if (!user_id || !stage) return res.status(400).send('Missing user_id or stage');
 
   try {
@@ -129,7 +136,6 @@ app.post('/api/progress', async (req, res) => {
       'INSERT INTO progress (user_id, stage, created_at) VALUES ($1, $2, NOW()) RETURNING *',
       [user_id, stage]
     );
-    console.log('✅ Прогрес записан:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
     console.error('❌ Прогрес Insert Error:', err.message);
@@ -137,7 +143,7 @@ app.post('/api/progress', async (req, res) => {
   }
 });
 
-// 🚀 Старт
+// 🚀 Стартиране на сървъра
 app.listen(PORT, () => {
   console.log(`🚀 Сървърът работи на порт ${PORT}`);
 });
