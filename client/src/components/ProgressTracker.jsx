@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 const API_BASE = "https://training-platform-backend-mq42.onrender.com/api";
 
@@ -6,87 +6,66 @@ export default function ProgressTracker() {
   const [trainees, setTrainees] = useState([]);
   const [newTrainee, setNewTrainee] = useState("");
 
-  // Изтегляне на всички trainees от базата
+  // Зареждане на trainee прогрес при зареждане на компонента
   useEffect(() => {
     async function fetchProgress() {
       try {
         const res = await fetch(`${API_BASE}/progress`);
-        if (!res.ok) throw new Error("Грешка при зареждане на прогреса");
+        if (!res.ok) throw new Error("Грешка при зареждане на прогрес");
         const data = await res.json();
-
-        const grouped = data.reduce((acc, item) => {
-          const name = item.user_id;
-          const stage = parseInt(item.stage.replace("%", "")) || 0;
-          acc[name] = stage;
-          return acc;
-        }, {});
-
-        const formatted = Object.entries(grouped).map(([name, progress]) => ({
-          name,
-          progress,
-        }));
-
-        setTrainees(formatted);
+        setTrainees(
+          data.map((entry) => ({
+            name: entry.user_id,
+            stage: entry.stage,
+            created_at: entry.created_at,
+          }))
+        );
       } catch (err) {
-        console.error("❌ Failed to fetch progress:", err);
+        console.error("❌ Грешка при зареждане на прогрес:", err);
       }
     }
 
     fetchProgress();
   }, []);
 
-  // Добавяне на нов trainee
+  // Добавяне на trainee
   const handleAddTrainee = async () => {
     const trimmed = newTrainee.trim();
     if (!trimmed) return;
 
     try {
+      const stage = `${trimmed} (New)`;
       const res = await fetch(`${API_BASE}/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: trimmed, stage: "0%" }),
+        body: JSON.stringify({ user_id: trimmed, stage }),
       });
 
-      if (!res.ok) throw new Error("❌ Неуспешно добавяне на trainee");
+      if (!res.ok) throw new Error("Грешка при запис");
 
-      setTrainees([...trainees, { name: trimmed, progress: 0 }]);
+      const added = await res.json();
+      setTrainees((prev) => [
+        ...prev,
+        {
+          name: added.user_id,
+          stage: added.stage,
+          created_at: added.created_at,
+        },
+      ]);
       setNewTrainee("");
     } catch (err) {
-      console.error("❌ Error adding trainee:", err);
-      alert("Неуспешно добавяне");
-    }
-  };
-
-  // Обновяване на прогрес
-  const updateProgress = async (index, newProgress) => {
-    const clamped = Math.min(100, Math.max(0, parseInt(newProgress) || 0));
-    const name = trainees[index].name;
-
-    try {
-      const res = await fetch(`${API_BASE}/progress`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: name, stage: `${clamped}%` }),
-      });
-
-      if (!res.ok) throw new Error("❌ Проблем при обновяване");
-
-      const updated = [...trainees];
-      updated[index].progress = clamped;
-      setTrainees(updated);
-    } catch (err) {
-      console.error("❌ Error updating progress:", err);
+      console.error("🚨 Неуспешно записване:", err);
       alert("Грешка при запис на прогрес");
     }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4">
       <div className="flex space-x-2">
         <input
           type="text"
           placeholder="Add trainee..."
-          className="border rounded px-2 py-1"
+          className="border rounded px-2 py-1 w-full"
           value={newTrainee}
           onChange={(e) => setNewTrainee(e.target.value)}
         />
@@ -98,23 +77,18 @@ export default function ProgressTracker() {
         </button>
       </div>
 
-      <ul className="space-y-3">
-        {trainees.map((trainee, index) => (
+      <ul className="space-y-2">
+        {trainees.map((t, i) => (
           <li
-            key={index}
-            className="flex justify-between items-center border p-2 rounded"
+            key={i}
+            className="border p-3 rounded flex justify-between items-center bg-white shadow-sm"
           >
-            <span className="font-medium">{trainee.name}</span>
-            <div className="flex items-center space-x-2">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={trainee.progress}
-                onChange={(e) => updateProgress(index, e.target.value)}
-                className="w-16 border rounded px-1"
-              />
-              <span>%</span>
+            <div>
+              <div className="font-semibold">{t.name}</div>
+              <div className="text-sm text-gray-600">{t.stage}</div>
+            </div>
+            <div className="text-xs text-gray-500">
+              {new Date(t.created_at).toLocaleDateString()}
             </div>
           </li>
         ))}
@@ -122,3 +96,4 @@ export default function ProgressTracker() {
     </div>
   );
 }
+
