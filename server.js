@@ -41,6 +41,14 @@ app.get('/api/events', async (req, res) => {
 // Add new event
 app.post('/api/events', async (req, res) => {
   const { title, start, end } = req.body;
+
+  // Основна валидация
+  if (!title || !start || !end) {
+    return res.status(400).send('Липсват задължителни полета: title, start или end');
+  }
+
+  console.log('Получени данни за запис:', { title, start, end });
+
   try {
     const result = await pool.query(
       'INSERT INTO events (title, start, "end") VALUES ($1, $2, $3) RETURNING *',
@@ -67,6 +75,10 @@ app.get('/api/trainees', async (req, res) => {
 // Add new trainee
 app.post('/api/trainees', async (req, res) => {
   const { name } = req.body;
+  if (!name) {
+    return res.status(400).send('Липсва задължително поле: name');
+  }
+
   try {
     const result = await pool.query(
       'INSERT INTO trainees (name) VALUES ($1) RETURNING *',
@@ -83,7 +95,6 @@ app.post('/api/trainees', async (req, res) => {
 app.delete('/api/trainees/:name', async (req, res) => {
   const { name } = req.params;
   try {
-    // Изтриваме събития, чиито заглавия започват с името (LIKE 'name%')
     await pool.query("DELETE FROM events WHERE title ILIKE $1", [name + '%']);
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
     res.sendStatus(204);
@@ -102,3 +113,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Сървърът работи на порт ${PORT}`);
 });
+
