@@ -1,3 +1,5 @@
+// Dashboard.jsx (обновен да използва бекенд API вместо localStorage)
+
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import React, { useState, useEffect } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
@@ -14,14 +16,8 @@ import VehicleSelector from "../components/VehicleSelector";
 import TrainingDetailsModal from "../components/TrainingDetailsModal";
 
 const locales = { "en-US": enUS };
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-});
+const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
+const API_BASE = "https://your-render-backend.onrender.com/api"; // ЗАМЕНИ със своя URL
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
@@ -44,53 +40,11 @@ function toTitleCase(str) {
   );
 }
 
-function findDetailsKey(name) {
-  const variants = [
-    name.toLowerCase(),
-    name,
-    encodeURIComponent(name),
-    encodeURIComponent(name.toLowerCase()),
-  ];
-
-  for (const variant of variants) {
-    const key = `training_details_${variant}`;
-    if (localStorage.getItem(key)) {
-      return key;
-    }
-  }
-  return `training_details_${name.toLowerCase()}`;
-}
-
-export default function Dashboard() {
+function Dashboard() {
   const navigate = useNavigate();
 
-  // Проверка за логнат потребител при зареждане
-  useEffect(() => {
-    const loggedInUser = localStorage.getItem("loggedInUser");
-    if (!loggedInUser) {
-      navigate("/login");
-    }
-  }, [navigate]);
-
-  const [events, setEvents] = useState(() => {
-    const saved = localStorage.getItem("training_events");
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      return parsed.map((ev) => ({
-        ...ev,
-        start: new Date(ev.start),
-        end: new Date(ev.end),
-      }));
-    } catch {
-      return [];
-    }
-  });
-
-  const [trainees, setTrainees] = useState(() => {
-    const saved = localStorage.getItem("training_trainees");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [events, setEvents] = useState([]);
+  const [trainees, setTrainees] = useState([]);
 
   const [date, setDate] = useState(new Date());
   const [view, setView] = useState("month");
@@ -107,29 +61,51 @@ export default function Dashboard() {
   const [detailsModalInfo, setDetailsModalInfo] = useState(null);
 
   useEffect(() => {
-    localStorage.setItem("training_events", JSON.stringify(events));
-  }, [events]);
+    const loggedInUser = localStorage.getItem("loggedInUser");
+    if (!loggedInUser) navigate("/login");
+  }, [navigate]);
 
   useEffect(() => {
-    localStorage.setItem("training_trainees", JSON.stringify(trainees));
-  }, [trainees]);
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/progress`);
+        const data = await res.json();
+
+        const eventsFromDB = data.map((item) => {
+          const start = new Date(item.created_at);
+          const end = addDays(start, 13);
+
+          return {
+            title: item.stage,
+            start,
+            end,
+            allDay: true,
+          };
+        });
+
+        setEvents(eventsFromDB);
+        const names = [...new Set(data.map((item) => extractName(item.stage)))];
+        setTrainees(names);
+      } catch (e) {
+        console.error("Failed to fetch progress data", e);
+      }
+    };
+    fetchData();
+  }, []);
 
   const handleSelectSlot = (slotInfo) => {
     const nameInput = prompt("Enter trainee name:");
     if (!nameInput) return;
 
-    const trimmedName = nameInput.trim();
-    if (trimmedName === "") return;
+    const trimmed = nameInput.trim();
+    if (!trimmed) return;
 
-    const nameExists = trainees.some(
-      (t) => t.toLowerCase() === trimmedName.toLowerCase()
-    );
-    if (nameExists) {
-      alert(`Trainee with name "${trimmedName}" already exists!`);
+    if (trainees.includes(trimmed)) {
+      alert(`Trainee \"${trimmed}\" already exists!`);
       return;
     }
 
-    setPendingName(trimmedName);
+    setPendingName(trimmed);
     setPendingSlot(slotInfo);
     setShowDepotSelector(true);
   };
@@ -140,23 +116,27 @@ export default function Dashboard() {
     setShowVehicleSelector(true);
   };
 
-  const handleVehicleSelected = (vehicle) => {
+  const handleVehicleSelected = async (vehicle) => {
     if (!pendingName || !pendingSlot || !pendingDepot) return;
 
     const startDate = pendingSlot.start;
     const endDate = addDays(startDate, 13);
 
-    const newTitle = `${pendingName} (${pendingDepot}) [${vehicle}]`;
+    const title = `${pendingName} (${pendingDepot}) [${vehicle}]`;
 
-    const newEvent = {
-      title: newTitle,
-      start: startDate,
-      end: endDate,
-      allDay: true,
-    };
-
+    const newEvent = { title, start: startDate, end: endDate, allDay: true };
     setEvents((prev) => [...prev, newEvent]);
     setTrainees((prev) => [...prev, pendingName]);
+
+    try {
+      await fetch(`${API_BASE}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: pendingName, stage: title }),
+      });
+    } catch (e) {
+      console.error("Error saving to backend", e);
+    }
 
     setPendingName(null);
     setPendingSlot(null);
@@ -176,150 +156,8 @@ export default function Dashboard() {
     const now = new Date();
     const start = new Date(event.start);
     const end = new Date(event.end);
-
-    let backgroundColor = "green";
-
-    if (end < now) {
-      backgroundColor = "red";
-    } else if (start <= now && now <= end) {
-      backgroundColor = "yellow";
-    }
-
-    return {
-      style: {
-        backgroundColor,
-        color: "black",
-        borderRadius: "5px",
-        border: "1px solid #666",
-      },
-    };
-  };
-
-  const getTraineeColor = (trainee) => {
-    const event = events.find((ev) => extractName(ev.title) === trainee);
-    if (!event) return "black";
-
-    const now = new Date();
-    const start = new Date(event.start);
-    const end = new Date(event.end);
-
-    if (end < now) return "red";
-    else if (start <= now && now <= end) return "orange";
-    else if (start > now) return "green";
-
-    return "black";
-  };
-
-  const generateReport = () => {
-    if (!reportStart || !reportEnd) {
-      alert("Please select both start and end dates for the report.");
-      return;
-    }
-
-    const startFilter = new Date(reportStart);
-    const endFilter = new Date(reportEnd);
-    endFilter.setHours(23, 59, 59, 999);
-
-    const rows = [
-      ["Trainee", "Depot", "Vehicle", "Training Date", "Topic", "Notes"],
-    ];
-
-    let hasData = false;
-
-    events.forEach((ev) => {
-      const name = toTitleCase(extractName(ev.title));
-      const depot = extractDepot(ev.title);
-      const vehicle = extractVehicle(ev.title);
-
-      const detailsKey = findDetailsKey(name);
-      const detailsRaw = localStorage.getItem(detailsKey);
-      let details = {};
-
-      if (detailsRaw) {
-        try {
-          details = JSON.parse(detailsRaw);
-        } catch (e) {
-          console.warn(`Could not parse training details for ${name}:`, e);
-        }
-      }
-
-      for (let day = 1; day <= 14; day++) {
-        const currentDate = addDays(new Date(ev.start), day - 1);
-
-        if (currentDate >= startFilter && currentDate <= endFilter) {
-          const dayKey = `day${day}`;
-          const dayDetails = details[dayKey] || {};
-
-          rows.push([
-            name,
-            depot,
-            vehicle,
-            format(currentDate, "dd/MM/yyyy"),
-            dayDetails.topic || "",
-            dayDetails.notes || "",
-          ]);
-
-          hasData = true;
-        }
-      }
-    });
-
-    if (!hasData) {
-      alert("No trainings found in selected date range.");
-      return;
-    }
-
-    const csvContent = rows
-      .map((r) =>
-        r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      )
-      .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, `training_report_${format(new Date(), "yyyyMMdd")}.csv`);
-  };
-
-  const traineesByDepot = events.reduce((acc, ev) => {
-    const name = extractName(ev.title);
-    const depot = extractDepot(ev.title);
-    const startDate = ev.start;
-    const vehicle = extractVehicle(ev.title);
-
-    if (trainees.includes(name)) {
-      if (!acc[depot]) acc[depot] = [];
-      if (!acc[depot].some((t) => t.name === name)) {
-        acc[depot].push({ name, startDate, vehicle });
-      }
-    }
-    return acc;
-  }, {});
-
-  const sortedDepots = Object.keys(traineesByDepot).sort();
-
-  const handleDeleteTrainee = (traineeToDelete) => {
-    if (!window.confirm(`Are you sure you want to delete ${traineeToDelete}?`))
-      return;
-
-    const updatedTrainees = trainees.filter(
-      (t) => t.toLowerCase() !== traineeToDelete.toLowerCase()
-    );
-    const updatedEvents = events.filter(
-      (ev) =>
-        extractName(ev.title).toLowerCase() !== traineeToDelete.toLowerCase()
-    );
-
-    const variantsToRemove = [
-      traineeToDelete.toLowerCase(),
-      traineeToDelete,
-      encodeURIComponent(traineeToDelete),
-      encodeURIComponent(traineeToDelete.toLowerCase()),
-    ];
-    variantsToRemove.forEach((variant) => {
-      localStorage.removeItem(`training_details_${variant}`);
-    });
-
-    setTrainees(updatedTrainees);
-    setEvents(updatedEvents);
+    let backgroundColor = end < now ? "red" : start <= now ? "yellow" : "green";
+    return { style: { backgroundColor, color: "black", borderRadius: "5px" } };
   };
 
   const handleSelectEvent = (event) => {
@@ -327,11 +165,6 @@ export default function Dashboard() {
     setDetailsModalInfo({ traineeName: name, start: event.start, end: event.end });
   };
 
-  const closeDetailsModal = () => {
-    setDetailsModalInfo(null);
-  };
-
-  // Логика за logout бутон
   const handleLogout = () => {
     if (window.confirm("Are you sure you want to logout?")) {
       localStorage.removeItem("loggedInUser");
@@ -341,43 +174,9 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15 }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
         <h2>📅 Training Calendar</h2>
-        <button
-          onClick={handleLogout}
-          style={{
-            backgroundColor: "#e74c3c",
-            color: "white",
-            border: "none",
-            padding: "8px 16px",
-            borderRadius: "4px",
-            cursor: "pointer",
-          }}
-          type="button"
-          title="Logout"
-        >
-          Logout
-        </button>
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ marginRight: 10 }}>
-          From:{" "}
-          <input
-            type="date"
-            value={reportStart}
-            onChange={(e) => setReportStart(e.target.value)}
-          />
-        </label>
-        <label style={{ marginRight: 10 }}>
-          To:{" "}
-          <input
-            type="date"
-            value={reportEnd}
-            onChange={(e) => setReportEnd(e.target.value)}
-          />
-        </label>
-        <button onClick={generateReport}>Export Report</button>
+        <button onClick={handleLogout}>Logout</button>
       </div>
 
       <Calendar
@@ -397,57 +196,23 @@ export default function Dashboard() {
       />
 
       {showDepotSelector && (
-        <DepotSelector
-          onSelect={handleDepotSelected}
-          onCancel={handleDepotCancel}
-        />
+        <DepotSelector onSelect={handleDepotSelected} onCancel={handleDepotCancel} />
       )}
 
       {showVehicleSelector && (
-        <VehicleSelector
-          onSelect={handleVehicleSelected}
-          onCancel={handleDepotCancel}
-        />
+        <VehicleSelector onSelect={handleVehicleSelected} onCancel={handleDepotCancel} />
       )}
-
-      <h3>📋 Trainees List</h3>
-      {sortedDepots.map((depot) => (
-        <div key={depot} style={{ marginBottom: 20 }}>
-          <h4>{depot}</h4>
-          <ul>
-            {traineesByDepot[depot]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map(({ name, startDate, vehicle }) => (
-                <li
-                  key={name}
-                  style={{ cursor: "pointer", color: getTraineeColor(name) }}
-                  onClick={() => navigate(`/trainee/${encodeURIComponent(name)}`)}
-                >
-                  {name} - Start: {format(startDate, "dd/MM/yyyy")} - Vehicle: {vehicle}{" "}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteTrainee(name);
-                    }}
-                    style={{ marginLeft: 10, cursor: "pointer" }}
-                    type="button"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </div>
-      ))}
 
       {detailsModalInfo && (
         <TrainingDetailsModal
           traineeName={detailsModalInfo.traineeName}
           startDate={detailsModalInfo.start}
           endDate={detailsModalInfo.end}
-          onClose={closeDetailsModal}
+          onClose={() => setDetailsModalInfo(null)}
         />
       )}
     </div>
   );
 }
+
+export default Dashboard;

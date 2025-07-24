@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Serve React build
+// Serve React build (папка 'build' трябва да съществува)
 app.use(express.static(path.join(__dirname, 'build')));
 
 // PostgreSQL connection
@@ -85,7 +85,7 @@ app.post('/api/trainees', async (req, res) => {
 app.delete('/api/trainees/:name', async (req, res) => {
   const { name } = req.params;
   try {
-    await pool.query('DELETE FROM events WHERE title ILIKE $1 || '%'', [name]);
+    await pool.query("DELETE FROM events WHERE title ILIKE $1", [name + '%']);
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
     res.sendStatus(204);
   } catch (err) {
