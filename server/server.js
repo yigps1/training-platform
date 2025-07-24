@@ -7,15 +7,19 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ Разреши достъп от фронтенда (Render frontend домейн)
+// ✅ Разреши достъп от фронтенда (можеш да зададеш списък по избор)
 const corsOptions = {
-  origin: 'https://training-platform-4tn3.onrender.com', // Твоят frontend URL!
+  origin: [
+    'https://training-platform-4tn3.onrender.com',
+    'https://training-platform-7znr.onrender.com'
+  ],
   credentials: true,
   optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.options('*', cors(corsOptions));
 
 // 🧾 Логване на заявки
 app.use((req, res, next) => {
@@ -23,10 +27,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ CORS preflight
-app.options('*', cors(corsOptions));
-
-// 📦 Serve React build (ако е deploy-нат фронт)
+// 📦 Serve static React build (ако го има тук)
 app.use(express.static(path.join(__dirname, 'build')));
 
 // 🐘 PostgreSQL връзка
@@ -35,18 +36,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// ✅ Health Check
+// ✅ Health check
 app.get('/api', (req, res) => {
-  res.send('API работи 🟢');
+  res.send('✅ API работи');
 });
 
-// 📅 Events
+// 🗓️ Events
 app.get('/api/events', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events');
     res.json(result.rows);
   } catch (err) {
-    console.error('Грешка при четене на events:', err);
+    console.error('❌ Грешка при четене на events:', err);
     res.status(500).send('Грешка при четене на събития');
   }
 });
@@ -61,7 +62,7 @@ app.post('/api/events', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Грешка при запис на event:', err);
+    console.error('❌ Грешка при запис на event:', err);
     res.status(500).send('Грешка при запис на събитие');
   }
 });
@@ -72,7 +73,7 @@ app.get('/api/trainees', async (req, res) => {
     const result = await pool.query('SELECT * FROM trainees');
     res.json(result.rows);
   } catch (err) {
-    console.error('Грешка при четене на trainees:', err);
+    console.error('❌ Грешка при четене на trainees:', err);
     res.status(500).send('Грешка при четене на обучаеми');
   }
 });
@@ -87,7 +88,7 @@ app.post('/api/trainees', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Грешка при запис на trainee:', err);
+    console.error('❌ Грешка при запис на trainee:', err);
     res.status(500).send('Грешка при запис на обучаем');
   }
 });
@@ -99,7 +100,7 @@ app.delete('/api/trainees/:name', async (req, res) => {
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
     res.sendStatus(204);
   } catch (err) {
-    console.error('Грешка при изтриване:', err);
+    console.error('❌ Грешка при изтриване:', err);
     res.status(500).send('Грешка при изтриване');
   }
 });
@@ -110,33 +111,36 @@ app.get('/api/progress', async (req, res) => {
     const result = await pool.query('SELECT * FROM progress ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (err) {
-    console.error('Грешка при четене на progress:', err);
+    console.error('❌ Грешка при четене на progress:', err);
     res.status(500).send('Грешка при четене на прогреса');
   }
 });
 
 app.post('/api/progress', async (req, res) => {
   const { user_id, stage } = req.body;
-  console.log("POST /api/progress BODY:", req.body);
+  console.log('📩 POST /api/progress BODY:', req.body);
+
   if (!user_id || !stage) return res.status(400).send('Missing user_id or stage');
+
   try {
     const result = await pool.query(
       'INSERT INTO progress (user_id, stage, created_at) VALUES ($1, $2, NOW()) RETURNING *',
       [user_id, stage]
     );
+    console.log('✅ Прогрес записан:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Грешка при запис на прогрес:', err);
+    console.error('❌ Грешка при запис на прогрес:', err.message);
     res.status(500).send('Грешка при запис на прогрес');
   }
 });
 
-// ✅ Catch-all route за React SPA
+// ⚠️ Catch-all route за React SPA (ако се ползва build)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// 🚀 Стартирай сървъра
+// 🚀 Start
 app.listen(PORT, () => {
-  console.log(`Сървърът работи на порт ${PORT}`);
+  console.log(`🚀 Сървърът работи на порт ${PORT}`);
 });
