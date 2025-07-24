@@ -23,7 +23,7 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-const API_BASE = process.env.REACT_APP_API_URL || "https://your-backend-url/api"; // .env
+const API_BASE = process.env.REACT_APP_API_URL || "https://training-platform-backend-mq42.onrender.com/api";
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
@@ -42,13 +42,10 @@ function extractVehicle(title) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-
   const [events, setEvents] = useState([]);
   const [trainees, setTrainees] = useState([]);
-
   const [date, setDate] = useState(new Date());
   const [view, setView] = useState("month");
-
   const [showDepotSelector, setShowDepotSelector] = useState(false);
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [pendingName, setPendingName] = useState(null);
@@ -181,4 +178,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
