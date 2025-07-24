@@ -4,13 +4,16 @@ import Dashboard from "./pages/Dashboard";
 import TraineeDetail from "./pages/TraineeDetail";
 import Login from "./pages/Login";
 
+// Компонент за защита на рутове (private routes)
 function PrivateRoute({ children }) {
   const loggedInUser = localStorage.getItem("loggedInUser");
 
-  // Ако искаш, можеш да парсваш JSON и да проверяваш, но за пример - само проверяваме съществуване:
   if (!loggedInUser) {
+    // Ако не е логнат, пренасочи към логин
     return <Navigate to="/login" replace />;
   }
+
+  // Ако е логнат, рендерирай децата (компонента)
   return children;
 }
 
@@ -20,7 +23,13 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={loggedInUser ? <Navigate to="/dashboard" replace /> : <Login />} />
+        {/* Логин страница - ако е логнат, пренасочи към dashboard */}
+        <Route
+          path="/login"
+          element={loggedInUser ? <Navigate to="/dashboard" replace /> : <Login />}
+        />
+
+        {/* Dashboard - достъпен само ако си логнат */}
         <Route
           path="/dashboard"
           element={
@@ -29,6 +38,8 @@ function App() {
             </PrivateRoute>
           }
         />
+
+        {/* Страница за детайли на обучаемия - само ако си логнат */}
         <Route
           path="/trainee/:name"
           element={
@@ -37,9 +48,16 @@ function App() {
             </PrivateRoute>
           }
         />
-        {/* Пренасочване на "/" към "/dashboard" ако си логнат, иначе към login */}
-        <Route path="/" element={loggedInUser ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
-        {/* Ако URL не съвпада с никой път, пренасочи към login */}
+
+        {/* Основен рут "/" - пренасочва към dashboard или login */}
+        <Route
+          path="/"
+          element={
+            loggedInUser ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Всички други пътища пренасочват към login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
