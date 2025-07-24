@@ -15,8 +15,8 @@ import TrainingDetailsModal from "../components/TrainingDetailsModal";
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-// ✅ Без /api в края
-const API_BASE = "https://training-platform-backend-mq42.onrender.com/login";
+// ✅ Коригиран API път без /login
+const API_BASE = "https://training-platform-backend-mq42.onrender.com";
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
