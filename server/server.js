@@ -7,7 +7,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ Разреши достъп от фронтенда (можеш да зададеш списък по избор)
+// ✅ CORS конфигурация – разрешени front-end домейни
 const corsOptions = {
   origin: [
     'https://training-platform-4tn3.onrender.com',
@@ -21,13 +21,13 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.options('*', cors(corsOptions));
 
-// 🧾 Логване на заявки
+// 🧾 Логване на всички заявки
 app.use((req, res, next) => {
   console.log(`[${req.method}] ${req.url}`);
   next();
 });
 
-// 📦 Serve static React build (ако го има тук)
+// 📦 React build (ако е deploy-нат тук)
 app.use(express.static(path.join(__dirname, 'build')));
 
 // 🐘 PostgreSQL връзка
@@ -41,7 +41,9 @@ app.get('/api', (req, res) => {
   res.send('✅ API работи');
 });
 
-// 🗓️ Events
+// ===============================
+// 🗓️ EVENTS
+// ===============================
 app.get('/api/events', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events');
@@ -62,12 +64,14 @@ app.post('/api/events', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('❌ Грешка при запис на event:', err);
+    console.error('❌ Грешка при запис на събитие:', err);
     res.status(500).send('Грешка при запис на събитие');
   }
 });
 
-// 👨‍🎓 Trainees
+// ===============================
+// 👨‍🎓 TRAINEES
+// ===============================
 app.get('/api/trainees', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM trainees');
@@ -105,7 +109,9 @@ app.delete('/api/trainees/:name', async (req, res) => {
   }
 });
 
-// 📊 Progress
+// ===============================
+// 📊 PROGRESS
+// ===============================
 app.get('/api/progress', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM progress ORDER BY created_at DESC');
@@ -124,7 +130,7 @@ app.post('/api/progress', async (req, res) => {
 
   try {
     const result = await pool.query(
-      'INSERT INTO progress (user_id, stage, created_at) VALUES ($1, $2, NOW()) RETURNING *',
+      'INSERT INTO progress (user_id, stage) VALUES ($1, $2) RETURNING *',
       [user_id, stage]
     );
     console.log('✅ Прогрес записан:', result.rows[0]);
@@ -135,12 +141,14 @@ app.post('/api/progress', async (req, res) => {
   }
 });
 
-// ⚠️ Catch-all route за React SPA (ако се ползва build)
+// ===============================
+// SPA fallback (ако build е вътре)
+// ===============================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// 🚀 Start
+// 🚀 Стартиране
 app.listen(PORT, () => {
   console.log(`🚀 Сървърът работи на порт ${PORT}`);
 });
