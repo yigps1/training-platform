@@ -7,13 +7,13 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS конфигурация с реалния фронтенд URL
+// CORS конфигурация, замени с URL на твоя frontend
 const corsOptions = {
-  origin: 'https://training-platform-7znr.onrender.com',
+  origin: 'https://training-platform-7znr.onrender.com', // тук сложи URL-то на фронтенда
   optionsSuccessStatus: 200,
 };
-app.use(cors(corsOptions));
 
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Разрешаване на preflight (OPTIONS) заявки
@@ -37,7 +37,7 @@ app.get('/api', (req, res) => {
   res.send('API работи 🟢');
 });
 
-// Get all events
+// Events endpoints (пример)
 app.get('/api/events', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events');
@@ -48,13 +48,9 @@ app.get('/api/events', async (req, res) => {
   }
 });
 
-// Add new event
 app.post('/api/events', async (req, res) => {
   const { title, start, end } = req.body;
-
-  if (!title || !start || !end) {
-    return res.status(400).send('Липсват задължителни полета: title, start или end');
-  }
+  if (!title || !start || !end) return res.status(400).send('Липсват задължителни полета');
 
   try {
     const result = await pool.query(
@@ -68,7 +64,7 @@ app.post('/api/events', async (req, res) => {
   }
 });
 
-// Get all trainees
+// Trainees endpoints (пример)
 app.get('/api/trainees', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM trainees');
@@ -79,13 +75,9 @@ app.get('/api/trainees', async (req, res) => {
   }
 });
 
-// Add new trainee
 app.post('/api/trainees', async (req, res) => {
   const { name } = req.body;
-
-  if (!name) {
-    return res.status(400).send('Липсва задължително поле: name');
-  }
+  if (!name) return res.status(400).send('Липсва задължително поле: name');
 
   try {
     const result = await pool.query(
@@ -99,10 +91,8 @@ app.post('/api/trainees', async (req, res) => {
   }
 });
 
-// Delete trainee and related events
 app.delete('/api/trainees/:name', async (req, res) => {
   const { name } = req.params;
-
   try {
     await pool.query('DELETE FROM events WHERE title ILIKE $1', [name + '%']);
     await pool.query('DELETE FROM trainees WHERE name = $1', [name]);
@@ -113,14 +103,32 @@ app.delete('/api/trainees/:name', async (req, res) => {
   }
 });
 
-// New endpoint /api/progress, добави го ако ти трябва
+// === Нов endpoint за прогрес (progress) ===
+// Добави, ако нямаш - създай таблица progress(user_id, stage, created_at)
+
 app.get('/api/progress', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM progress'); // Ако нямаш таблица progress, замени или създай
+    const result = await pool.query('SELECT * FROM progress ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (err) {
     console.error('Грешка при четене на progress:', err);
     res.status(500).send('Грешка при четене на прогреса');
+  }
+});
+
+app.post('/api/progress', async (req, res) => {
+  const { user_id, stage } = req.body;
+  if (!user_id || !stage) return res.status(400).send('Missing user_id or stage');
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO progress (user_id, stage, created_at) VALUES ($1, $2, NOW()) RETURNING *',
+      [user_id, stage]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Грешка при запис на прогрес:', err);
+    res.status(500).send('Грешка при запис на прогрес');
   }
 });
 
