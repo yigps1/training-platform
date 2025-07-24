@@ -16,7 +16,7 @@ const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
 // ✅ Без /api в края
-const API_BASE = "https://training-platform-backend.onrender.com";
+const API_BASE = "https://training-platform-backend-mq42.onrender.com/login";
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
