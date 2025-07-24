@@ -7,12 +7,17 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// CORS конфигурация с реалния фронтенд URL
+const corsOptions = {
+  origin: 'https://training-platform-7znr.onrender.com',
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // Разрешаване на preflight (OPTIONS) заявки
-app.options('*', (req, res) => {
+app.options('*', cors(corsOptions), (req, res) => {
   res.sendStatus(200);
 });
 
@@ -50,8 +55,6 @@ app.post('/api/events', async (req, res) => {
   if (!title || !start || !end) {
     return res.status(400).send('Липсват задължителни полета: title, start или end');
   }
-
-  console.log('Получени данни за запис:', { title, start, end });
 
   try {
     const result = await pool.query(
@@ -107,6 +110,17 @@ app.delete('/api/trainees/:name', async (req, res) => {
   } catch (err) {
     console.error('Грешка при изтриване:', err);
     res.status(500).send('Грешка при изтриване');
+  }
+});
+
+// New endpoint /api/progress, добави го ако ти трябва
+app.get('/api/progress', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM progress'); // Ако нямаш таблица progress, замени или създай
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Грешка при четене на progress:', err);
+    res.status(500).send('Грешка при четене на прогреса');
   }
 });
 

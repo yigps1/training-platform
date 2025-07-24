@@ -15,7 +15,7 @@ import TrainingDetailsModal from "../components/TrainingDetailsModal";
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-const API_BASE = "https://your-render-backend.onrender.com/api"; // Смени с твоя бекенд URL
+const API_BASE = "postgresql://training_db_i7np_user:eV0yib2qylXq1Y3f2s4u9hfxPZD11JCm@dpg-d1soi87diees738hgig0-a.frankfurt-postgres.render.com/training_db_i7np"; // Смени с твоя бекенд URL
 
 // Помощни функции за извличане на имена, депота, возилото
 function extractName(title) {
