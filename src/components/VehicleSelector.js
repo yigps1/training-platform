@@ -23,7 +23,7 @@ export default function VehicleSelector({ onSelect, onCancel }) {
         {vehicles.map((v) => (
           <li key={v} style={{ marginBottom: 10 }}>
             <button
-              onClick={() => onSelect(v)}
+              onClick={() => onSelect(v)} // Тук използваме onSelect!
               style={{
                 padding: "8px 12px",
                 border: "1px solid #666",

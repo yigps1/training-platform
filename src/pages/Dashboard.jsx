@@ -15,25 +15,15 @@ import TrainingDetailsModal from "../components/TrainingDetailsModal";
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-// **Важна промяна - backend API базов URL, който връща JSON**
-const API_BASE = "https://training-platform-backend.onrender.com/api"; // Тук сложи твоя backend URL
+const API_BASE = "https://training-platform-backend.onrender.com/api";
 
 function extractName(title) {
   const match = title.match(/^(.+?)\s*\(/);
   return match ? match[1] : title;
 }
-function extractDepot(title) {
-  const match = title.match(/\((.+?)\)/);
-  return match ? match[1] : "Unknown";
-}
-function extractVehicle(title) {
-  const match = title.match(/\[(.+?)\]$/);
-  return match ? match[1] : "unknown";
-}
 
 function Dashboard() {
   const navigate = useNavigate();
-
   const [events, setEvents] = useState([]);
   const [trainees, setTrainees] = useState([]);
 
@@ -110,7 +100,6 @@ function Dashboard() {
   const handleVehicleSelected = async (vehicle) => {
     setShowVehicleSelector(false);
 
-    // Създай нов event със структурираното заглавие
     const title = `${pendingName} (${pendingDepot}) [${vehicle}]`;
 
     const newEvent = {
@@ -120,7 +109,6 @@ function Dashboard() {
       allDay: true,
     };
 
-    // Записване на прогрес в бекенда (POST /api/progress)
     try {
       const res = await fetch(`${API_BASE}/progress`, {
         method: "POST",
@@ -130,8 +118,7 @@ function Dashboard() {
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
-      // Добави към календара локално
-      setEvents((prevEvents) => [...prevEvents, newEvent]);
+      setEvents((prev) => [...prev, newEvent]);
       setPendingName(null);
       setPendingDepot(null);
       setPendingSlot(null);
@@ -166,13 +153,23 @@ function Dashboard() {
         onNavigate={(newDate) => setDate(newDate)}
       />
 
-      {showDepotSelector && <DepotSelector onDepotSelected={handleDepotSelected} />}
-      {showVehicleSelector && <VehicleSelector onVehicleSelected={handleVehicleSelected} />}
-      {detailsModalInfo && (
-        <TrainingDetailsModal
-          event={detailsModalInfo}
-          onClose={handleCloseDetailsModal}
+      {showDepotSelector && (
+        <DepotSelector
+          traineeName={pendingName}
+          onSelect={handleDepotSelected}
+          onCancel={() => setShowDepotSelector(false)}
         />
+      )}
+
+      {showVehicleSelector && (
+        <VehicleSelector
+          onSelect={handleVehicleSelected}
+          onCancel={() => setShowVehicleSelector(false)}
+        />
+      )}
+
+      {detailsModalInfo && (
+        <TrainingDetailsModal event={detailsModalInfo} onClose={handleCloseDetailsModal} />
       )}
     </div>
   );
